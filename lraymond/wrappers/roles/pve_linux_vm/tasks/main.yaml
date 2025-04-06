@@ -127,3 +127,21 @@
   tags: configuration
   become: true
   when: pve_linux_vm.ssh_password_auth
+
+- name: Restart SSH
+  ansible.builtin.service:
+    name: ssh
+    state: restarted
+  tags: configuration
+  become: true
+  when: pve_linux_vm.ssh_password_auth
+
+- name: Wait for SSH to be available
+  ansible.builtin.wait_for:
+    host: "{{ pve_linux_vm.ip }}"
+    port: 22
+    delay: 10
+    timeout: 300
+    state: started
+  tags: deployment
+  when: pve_linux_vm.ssh_password_auth
