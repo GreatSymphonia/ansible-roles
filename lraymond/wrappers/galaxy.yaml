@@ -1,0 +1,10 @@
+namespace: lraymond
+name: wrappers
+description: |
+  This is a wrapper for other Ansible roles, useful in specific cases where
+  the default behavior of the role is not desired and/or too detailed.
+readme: ../../README.md
+authors:
+  - Louis Raymond
+repository: https://github.com/GreatSymphonia/ansible-roles
+build_ignore: []

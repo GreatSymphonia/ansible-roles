@@ -1,0 +1,129 @@
+---
+
+# Still no storage, added later with the disk (we are using a cloud image)
+- name: Create the VM
+  community.general.proxmox_kvm:
+    # Generic node parameters
+    node: "{{ pve_linux_vm_proxmox_node }}"
+    api_user: "{{ pve_linux_vm_api.user }}"
+    api_host: "{{ pve_linux_vm_api.host }}"
+    api_token_id: "{{ pve_linux_vm_api.token_id }}"
+    api_token_secret: "{{ pve_linux_vm_api.token_secret }}"
+    # VM specific parameters
+    name: "{{ inventory_hostname }}"
+    vmid: "{{ pve_linux_vm.vmid }}"
+    tags: "{{ pve_linux_vm.tags | default('ansible-managed') }}"
+    cores: "{{ pve_linux_vm.cores }}"
+    memory: "{{ pve_linux_vm.ram }}"
+    net:
+      net0: "{{ pve_linux_vm.network | default('virtio,bridge=vmbr0') }}" # assumes virtio, nothing else is better
+    onboot: "{{ pve_linux_vm.onboot | default(true) }}"
+    # Sane Defaults
+    cpu: host
+    agent: true
+    ide:
+      ide2: "local-lvm:cloudinit,media=cdrom" # forcing cloud-init on the local-lvm storage
+    machine: q35
+    ostype: "l26"
+    # Cloud-init specific parameters
+    ciuser: "{{ ansible_user | default('user') }}"
+    cipassword: "{{ ansible_ssh_password }}"
+    ciupgrade: false
+    ipconfig:
+      ipconfig0: >
+        ip={{ pve_linux_vm.ip | ansible.utils.ipaddr('address') }}/
+        {{ pve_linux_vm.ip | ansible.utils.ipaddr('prefix') }},
+        gw={{ pve_linux_vm.ip_gateway }}
+    searchdomains: "{{ pve_linux_vm.searchdomains | default('') }}"
+    sshkeys: "{{ pve_linux_vm.ssh_key | default('') }}"
+    # Needed
+    state: present
+  tags: deployment
+  delegate_to: localhost
+
+- name: Import cloud image
+  community.general.proxmox_disk:
+    # Generic node parameters
+    api_user: "{{ pve_linux_vm_api.user }}"
+    api_host: "{{ pve_linux_vm_api.host }}"
+    api_password: "{{ ansible_ssh_password }}" # doesn't work with token, known proxmox issue
+    # VM-specific parameters
+    vmid: "{{ pve_linux_vm.vmid }}"
+    import_from: "{{ pve_linux_vm.image }}" # use a .img cloud image
+    # State parameters
+    storage: local-lvm
+    disk: ide0
+    create: regular
+    state: present
+  tags: deployment
+  delegate_to: localhost
+
+- name: Resize the disk
+  community.general.proxmox_disk:
+    # Generic node parameters
+    api_user: "{{ pve_linux_vm_api.user }}"
+    api_host: "{{ pve_linux_vm_api.host }}"
+    api_token_id: "{{ pve_linux_vm_api.token_id }}"
+    api_token_secret: "{{ pve_linux_vm_api.token_secret }}"
+    # VM-specific parameters
+    vmid: "{{ pve_linux_vm.vmid }}"
+    size: "{{ pve_linux_vm.storage }}" # In GB
+    # State parameters
+    disk: ide0
+    state: resized
+  tags: deployment
+  delegate_to: localhost
+
+- name: Only boot from the cloud image disk
+  community.general.proxmox_kvm:
+    # Generic node parameters
+    node: "{{ pve_linux_vm_proxmox_node }}"
+    api_user: "{{ pve_linux_vm_api.user }}"
+    api_host: "{{ pve_linux_vm_api.host }}"
+    api_token_id: "{{ pve_linux_vm_api.token_id }}"
+    api_token_secret: "{{ pve_linux_vm_api.token_secret }}"
+    # VM-specific parameters
+    vmid: "{{ pve_linux_vm.vmid }}"
+    # State parameters
+    boot: order=ide0
+    update: true
+    state: present
+  tags: deployment
+  delegate_to: localhost
+
+- name: Start VMs
+  community.general.proxmox_kvm:
+    # Generic node parameters
+    api_user: "{{ pve_linux_vm_api.user }}"
+    api_host: "{{ pve_linux_vm_api.host }}"
+    api_token_id: "{{ pve_linux_vm_api.token_id }}"
+    api_token_secret: "{{ pve_linux_vm_api.token_secret }}"
+    # VM-specific parameters
+    vmid: "{{ pve_linux_vm.vmid }}"
+    # State parameters
+    state: started
+  tags: deployment
+  delegate_to: localhost
+
+- name: Wait for SSH to be available
+  ansible.builtin.wait_for:
+    host: "{{ pve_linux_vm.ip }}"
+    port: 22
+    delay: 10
+    timeout: 300
+    state: started
+  tags: deployment
+
+- name: Enable SSH password authentication
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    line: "{{ item }}"
+    state: present
+    validate: "sshd -t -f %s"
+  loop:
+    - 'PasswordAuthentication yes'
+    - 'PermitRootLogin yes'
+    - 'ChallengeResponseAuthentication yes'
+  tags: configuration
+  become: true
+  when: pve_linux_vm.ssh_password_auth
