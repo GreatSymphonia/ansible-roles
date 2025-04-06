@@ -1,6 +1,6 @@
 galaxy_info:
   namespace: lraymond
-  role_name: pve_linux_vm
+  role_name: linux_vm
   author: Louis Raymond
   description: Ansible role to create a Linux VM on Proxmox Virtual Environment.
   company: N/A
