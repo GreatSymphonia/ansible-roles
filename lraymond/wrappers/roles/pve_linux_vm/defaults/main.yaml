@@ -1,0 +1,28 @@
+---
+
+pve_linux_vm_proxmox_node: pve
+
+pve_linux_vm_api:
+  user: root
+  host: "{{ pve_linux_vm_proxmox_node }}"
+  token_id: "{{ pve_linux_vm_api.user }}@pve!ansible"
+  token_secret:
+  password:
+
+pve_linux_vm:
+  name: "{{ inventory_hostname }}"
+  vmid:
+  tags:
+    - "ansible-managed"
+  cores: 2
+  ram: 2048
+  # network:
+  # onboot: true
+  ip: "{{ ansible_host }}/24"
+  gateway: "{{ pve_linux_vm.ip | ansible.builtin.ipaddr('1') }}"
+  searchdomains: ''
+  ssh_key: ''
+  image: 'generic_ubuntu_distro.img'
+  storage: 20
+  ssh_password_auth: true
+  reboot: true

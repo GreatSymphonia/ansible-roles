@@ -10,7 +10,7 @@
     api_token_id: "{{ pve_linux_vm_api.token_id }}"
     api_token_secret: "{{ pve_linux_vm_api.token_secret }}"
     # VM specific parameters
-    name: "{{ inventory_hostname }}"
+    name: "{{ pve_linux_vm.name }}"
     vmid: "{{ pve_linux_vm.vmid }}"
     tags: "{{ pve_linux_vm.tags | default('ansible-managed') }}"
     cores: "{{ pve_linux_vm.cores }}"
@@ -26,7 +26,7 @@
     machine: q35
     ostype: "l26"
     # Cloud-init specific parameters
-    ciuser: "{{ ansible_user | default('user') }}"
+    ciuser: "{{ ansible_user }}"
     cipassword: "{{ ansible_ssh_password }}"
     ciupgrade: false
     ipconfig:
@@ -145,3 +145,47 @@
     state: started
   tags: deployment
   when: pve_linux_vm.ssh_password_auth
+
+- name: Install qemu-guest-agent
+  ansible.builtin.package:
+    name: qemu-guest-agent
+    state: present
+  tags: configuration
+  become: true
+
+- name: Start qemu-guest-agent
+  ansible.builtin.service:
+    name: qemu-guest-agent
+    state: started
+  tags: configuration
+  become: true
+
+- name: Enable qemu-guest-agent
+  ansible.builtin.service:
+    name: qemu-guest-agent
+    enabled: true
+  tags: configuration
+  become: true
+
+- name: Reboot the VM
+  ansible.builtin.reboot:
+    connect_timeout: 5
+    reboot_timeout: 300
+    test_command: whoami
+  tags: configuration
+  when: pve_linux_vm.reboot
+  register: reboot_result
+  until: reboot_result is not failed
+  retries: 3
+  delay: 10
+  become: true
+
+- name: Wait for SSH to be available
+  ansible.builtin.wait_for:
+    host: "{{ pve_linux_vm.ip }}"
+    port: 22
+    delay: 10
+    timeout: 300
+    state: started
+  tags: deployment
+  when: pve_linux_vm.reboot
