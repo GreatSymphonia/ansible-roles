@@ -1,5 +1,5 @@
-namespace: pve
-name: wrappers
+namespace: GreatSymphonia
+name: pve
 description: |
   This is a wrapper for other Ansible roles, useful in specific cases where
   the default behavior of the role is not desired and/or too detailed.
